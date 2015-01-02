@@ -30,8 +30,8 @@ class Bingmaps {
     var $showMapTypeSelector            = TRUE;
     var $showScalebar                   = TRUE;
     var $theme                          = '';
-    var tileBuffer                      = '';
-    var useInertia                      = TRUE;
+    var $tileBuffer                     = '';
+    var $useInertia                     = TRUE;
     
     // View Options
     var $animate                        = TRUE;
@@ -44,8 +44,29 @@ class Bingmaps {
     var $padding                        = '';
     var $zoom                           = 13;
     
-    var $onclick_bing                   = '';
-    var $ondragend_bing                 = '';
+    // Map Events
+    
+    var $onclick                        = '';
+    var $oncopyrightchanged             = '';
+    var $ondblclick                     = '';
+    var $onimagerychanged               = '';
+    var $onkeydown                      = '';
+    var $onkeypress                     = '';
+    var $onkeyup                        = '';
+    var $onmaptypechanged               = '';
+    var $onmousedown                    = '';
+    var $onmousemove                    = '';
+    var $onmouseout                     = '';
+    var $onmouseover                    = '';
+    var $onmouseup                      = '';
+    var $onmousewheel                   = '';
+    var $onoptionschanged               = '';
+    var $onrightclick                   = '';
+    var $ontargetviewchanged            = '';
+    var $ontiledownloadcomplete         = '';
+    var $onviewchange                   = '';
+    var $onviewchangeend                = '';
+    var $onviewchangestart              = '';
     
     var $markers                        = array();
     var $markersInfo                    = array();
@@ -56,7 +77,7 @@ class Bingmaps {
     function Bingmaps($config = array()) {
         
         if(count($config)>0) {
-            $this->init($config)
+            $this->init($config);
         }
         
     }
@@ -67,66 +88,6 @@ class Bingmaps {
                 $this->$key = $val;
             }
         }
-    }
-    
-    function add_marker($params = array()){
-        
-        $marker = array();
-        $this->markersInfo['marker_'.count($this->markers)] = array();
-        
-        $marker['position']         = '';
-        $marker['icon']             = '';
-        $marker['draggable']        = 'false';
-        $marker['ondragend_bing']   = '';
-        
-        $marker_output = '';
-        
-        foreach ($params as $key => $value) {
-		
-            if (isset($marker[$key])) {
-
-                $marker[$key] = $value;
-
-            }
-
-        }
-        
-        $marker_id = count($this->markers);
-        if (trim($marker['id']) != "")
-        {
-            $marker_id = $marker['id'];
-        }
-        
-        if($marker['position']!= ''){
-            if($this->is_lat_long($marker['position'])){
-                $marker_output .= 'var loc_'.$marker_id.' = new Microsoft.Maps.Location('.$marker['position'].');'; 
-                $explodePosition = explode(",", $marker['position']);
-                $this->markersInfo['marker_'.$marker_id]['latitude'] = trim($explodePosition[0]);
-                $this->markersInfo['marker_'.$marker_id]['longitude'] = trim($explodePosition[1]);
-            }
-        
-        
-            $marker_output .= '
-                var markerOptions = {
-                    draggable: '.$marker['draggable'];
-            if($marker['icon'] != '') {
-                $markerOptions .= ',
-                    icon: '.$marker['icon'];
-            }
-            $marker_output .= ' }
-                var pin_'.$marker_id.' = new Microsoft.Maps.Pushpin(loc_'.$marker_id.',markerOptions);
-                dataLayer.push(pin_'.$marker_id.');';
-
-            if ($marker['ondragend_bing']!="") { 
-                    $marker_output .= '
-                    Microsoft.Maps.Events.addHandler(pin_'.$marker_id.', "dragend", function(event) {
-                            '.$marker['ondragend_bing'].'
-                    });
-                    ';
-            }
-            array_push($this->markers,$marker_output);
-        }
-        
     }
     
     function add_pin($params) {
@@ -152,17 +113,17 @@ class Bingmaps {
         $pin['zIndex']          = '';
         
         // Pin Events
-        $pin['click']           = '';
-        $pin['dbclick']         = '';
-        $pin['drag']            = '';
-        $pin['dragend']         = '';
-        $pin['dragstart']       = '';
-        $pin['entitychanged']   = '';
-        $pin['mousedown']       = '';
-        $pin['mouseout']        = '';
-        $pin['mouseover']       = '';
-        $pin['mouseup']         = '';
-        $pin['rightclick']      = '';
+        $pin['onclick']           = '';
+        $pin['ondblclick']         = '';
+        $pin['ondrag']            = '';
+        $pin['ondragend']         = '';
+        $pin['ondragstart']       = '';
+        $pin['onentitychanged']   = '';
+        $pin['onmousedown']       = '';
+        $pin['onmouseout']        = '';
+        $pin['onmouseover']       = '';
+        $pin['onmouseup']         = '';
+        $pin['onrightclick']      = '';
         
         $output = '';
         
@@ -180,18 +141,25 @@ class Bingmaps {
         }
         
         if($pin['position'] != '') {
-            if(is_lat_long($pin['position'])) {
+            if($this->is_lat_long($pin['position'])) {
                 $output .= '
             var loc = new Microsoft.Maps.Location('.$pin['position'].');
                 ';
                 $explodePosition = explode(',', $pin['position']);
                 $pinInfo['latitude'] = trim($explodePosition[0]);
                 $pinInfo['longitude'] = trim($explodePosition[1]);
+            } else {
+                $latLng = $this->get_lat_long_from_address($pin['position']);
+                $output .= '
+            var loc = new Microsoft.Maps.Location('.$latLng[0].','.$latLng[1].');
+                ';
+                $pinInfo['latitude'] = $latLng[0];
+                $pinInfo['longitude'] = $latLng[1];
             }
             
-            // TODO: get lat long from address
         }
         
+        // Pin Options
         $output .= '
             var pinOptions = {
                 height: '.$pin['height'].',
@@ -255,9 +223,12 @@ class Bingmaps {
         $output .= '
             };
             var pin_'.$pin_id.' = new Microsoft.Maps.Pushpin(loc,pinOptions);
+            dataLayer.push(pin_'.$pin_id.');
             ';
         
-        if($pin['click'] != '') {
+        // Pin Events
+        
+        if($pin['onclick'] != '') {
             $output .= '
             Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "click", function(event){
                 '.$pin['click'].'
@@ -265,7 +236,7 @@ class Bingmaps {
             ';
         }
         
-        if($pin['dblclick'] != '') {
+        if($pin['ondblclick'] != '') {
             $output .= '
             Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "dblclick", function(event){
                 '.$pin['dblclick'].'
@@ -275,7 +246,7 @@ class Bingmaps {
         
         if($pin['draggable']) {
         
-            if($pin['drag'] != '') {
+            if($pin['ondrag'] != '') {
                 $output .= '
                 Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "drag", function(event){
                     '.$pin['drag'].'
@@ -283,7 +254,7 @@ class Bingmaps {
                 ';
             }
 
-            if($pin['dragend'] != '') {
+            if($pin['ondragend'] != '') {
                 $output .= '
                 Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "dragend", function(event){
                     '.$pin['dragend'].'
@@ -291,7 +262,7 @@ class Bingmaps {
                 ';
             }
 
-            if($pin['dragstart'] != '') {
+            if($pin['ondragstart'] != '') {
                 $output .= '
                 Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "dragstart", function(event){
                     '.$pin['dragstart'].'
@@ -301,7 +272,7 @@ class Bingmaps {
             
         }
         
-        if($pin['mousedown'] != '') {
+        if($pin['onmousedown'] != '') {
             $output .= '
             Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "mousedown", function(event){
                 '.$pin['mousedown'].'
@@ -309,7 +280,7 @@ class Bingmaps {
             ';
         }
         
-        if($pin['mouseout'] != '') {
+        if($pin['onmouseout'] != '') {
             $output .= '
             Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "mouseout", function(event){
                 '.$pin['mouseout'].'
@@ -317,7 +288,7 @@ class Bingmaps {
             ';
         }
         
-        if($pin['mouseover'] != '') {
+        if($pin['onmouseover'] != '') {
             $output .= '
             Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "mouseover", function(event){
                 '.$pin['mouseover'].'
@@ -325,7 +296,7 @@ class Bingmaps {
             ';
         }
         
-        if($pin['mouseup'] != '') {
+        if($pin['onmouseup'] != '') {
             $output .= '
             Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "mouseup", function(event){
                 '.$pin['mouseup'].'
@@ -333,7 +304,7 @@ class Bingmaps {
             ';
         }
         
-        if($pin['rightclick'] != '') {
+        if($pin['onrightclick'] != '') {
             $output .= '
             Microsoft.Maps.Events.addHandler(pin_'.$pin_id.', "rightclick", function(event){
                 '.$pin['rightclick'].'
@@ -366,7 +337,7 @@ class Bingmaps {
         $this->output_js_content .= '<script type="text/javascript">
             var '.$this->map_name.';
             var iw;
-            var markers =  new Array();
+            var pins =  new Array();
             var dataLayer;
             var dataInfo;
             
@@ -374,9 +345,19 @@ class Bingmaps {
                 var mapOptions = {
                     credentials: "'.$this->credentials.'",
                     zoom: '.$this->zoom.',
-                    center: new Microsoft.Maps.Location('.$this->center.'),
                     mapTypeId: Microsoft.Maps.MapTypeId.'.$this->map_type;
         
+        // Map Options
+        if($this->is_lat_long($this->center)) {
+            $this->output_js_content .= ',
+                    center: new Microsoft.Maps.Location('.$this->center.')
+            ';
+        } else {
+            $center = $this->get_lat_long_from_address($this->center);
+            $this->output_js_content .= ',
+                center: new Microsoft.Maps.Location('.$center[0].','.$center[1].')
+            ';
+        }
         if($this->backgroundColor != '') {
             $this->output_js_content .= ',
                 backgroundColor: \''.$this->backgroundColor.'\'';
@@ -457,7 +438,7 @@ class Bingmaps {
                 showDashboard: false';
         }
         
-        if(!$this->showMapTypeSeector) {
+        if(!$this->showMapTypeSelector) {
             $this->output_js_content .= ',
                 showMapTypeSelector: false';
         }
@@ -518,13 +499,6 @@ class Bingmaps {
                 '.$this->map_name.' = new Microsoft.Maps.Map(document.getElementById("'.$this->map_div_id.'"),mapOptions);
                 ';
         
-        if ($this->onclick_bing!="") { 
-                $this->output_js_content .= 'Microsoft.Maps.Events.addHandler('.$this->map_name.', "click", function(event) {
-                '.$this->onclick_bing.'
-                });
-                ';
-        }
-        
         $this->output_js_content .= '  
                 
                 dataLayer = new Microsoft.Maps.EntityCollection();
@@ -532,17 +506,183 @@ class Bingmaps {
                 
                 '.$this->map_name.'.entities.push(dataLayer);
                 '.$this->map_name.'.entities.push(dataInfo);
-                
+                ';
+        
+        // Map Events Handlers 
+        if($this->onclick != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "click", function(event){
+                '.$this->onclick.'
+            });
+            ';
+        }
+        
+        if($this->oncopyrightchanged != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "copyrightchanged", function(event){
+                '.$this->oncopyrightchanged.'
+            });
+            ';
+        }
+        
+        if($this->ondblclick != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "dblclick", function(event){
+                '.$this->ondblclick.'
+            });
+            ';
+        }
+        
+        if($this->onimagerychanged != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "imagerychanged", function(event){
+                '.$this->onimagerychanged.'
+            });
+            ';
+        }
+        
+        if($this->onkeydown != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "keydown", function(event){
+                '.$this->onkeydownkeydown.'
+            });
+            ';
+        }
+        
+        if($this->onkeypress != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "keypress", function(event){
+                '.$this->onkeypress.'
+            });
+            ';
+        }
+        
+        if($this->onkeyup != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "keyup", function(event){
+                '.$this->onkeyup.'
+            });
+            ';
+        }
+        
+        if($this->onmaptypechanged != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "maptypechanged", function(event){
+                '.$this->onmaptypechanged.'
+            });
+            ';
+        }
+        
+        if($this->onmousedown != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "mousedown", function(event){
+                '.$this->onmousedown.'
+            });
+            ';
+        }
+        
+        if($this->onmousemove != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "mousemove", function(event){
+                '.$this->onmousemove.'
+            });
+            ';
+        }
+        
+        if($this->onmouseout != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "mouseout", function(event){
+                '.$this->onmouseout.'
+            });
+            ';
+        }
+        
+        if($this->onmouseover != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "mouseover", function(event){
+                '.$this->onmouseover.'
+            });
+            ';
+        }
+        
+        if($this->onmouseup != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "mouseup", function(event){
+                '.$this->onmouseup.'
+            });
+            ';
+        }
+        
+        if($this->onmousewheel != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "mousewheel", function(event){
+                '.$this->onmousewheel.'
+            });
+            ';
+        }
+        
+        if($this->onoptionschanged != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "optionschanged", function(event){
+                '.$this->onoptionschanged.'
+            });
+            ';
+        }
+        
+        if($this->onrightclick != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "rightclick", function(event){
+                '.$this->onrightclick.'
+            });
+            ';
+        }
+        
+        if($this->ontargetviewchanged != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "targetviewchanged", function(event){
+                '.$this->ontargetviewchanged.'
+            });
+            ';
+        }
+        
+        if($this->ontiledownloadcomplete != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "tiledownloadcomplete", function(event){
+                '.$this->ontiledownloadcomplete.'
+            });
+            ';
+        }
+        
+        if($this->onviewchange != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "viewchange", function(event){
+                '.$this->onviewchange.'
+            });
+            ';
+        }
+        
+        if($this->onviewchangeend != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "viewchangeend", function(event){
+                '.$this->onviewchangeend.'
+            });
+            ';
+        }
+        
+        if($this->onviewchangestart != '') {
+            $this->output_js_content .= '
+            Microsoft.Maps.Events.addHandler('.$this->map_name.', "viewchangestart", function(event){
+                '.$this->onviewchangestart.'
+            });
+            ';
+        }
+        
+        $this->output_js_content .= '
                 AddData();
-            }
-            
-            function InfoboxHandler(){
-                alert("Infobox title was clicked!")
             }
             
             function AddData() {
             ';
-        
         
         if(count($this->pins)) {
             foreach($this->pins as $pin) {
@@ -550,31 +690,10 @@ class Bingmaps {
             }
         }
         
-        $this->output_js_content .= '}
-            
-            function createMarker(markerOptions) {
-                var marker_flag = checkMarkerCount();
-                var marker_delete_flag = checkMarkerDeleteFlag();
-
-                if(marker_flag == 0) {
-                var marker = new Microsoft.Maps.Pushpin(markerOptions.position,{icon:markerOptions.icon});
-                markerOptions.map.entities.push(marker)
-                markers.push(marker);
-                //lat_longs.push(marker.getPosition());
-                
-                if(marker_delete_flag) {
-                
-                 Microsoft.Maps.Events.addHandler(marker, "rightclick", function(e) {
-                  deleteMarker(markerOptions.position.latitude, markerOptions.position.longitude);
-                  markerOptions.map.entities.clear();
-                 });
-                }
-                
-               }
-                return marker;
+        $this->output_js_content .= '
             }
             
-            window.onload = GetMap();
+            window.onload = GetMap;
             </script>
             ';
         
@@ -602,5 +721,32 @@ class Bingmaps {
                     return false;
             }
 
+    }
+    
+    function get_lat_long_from_address($address) {
+        
+        $lat = 0;
+        $lng = 0;
+        
+        $error = new stdClass();
+        
+        $data_location = 'http://dev.virtualearth.net/REST/v1/Locations?q='.urlencode(utf8_encode($address)).'&key='.$this->credentials;
+        $data = file_get_contents($data_location);
+        $data = json_decode($data);
+        
+        if($data->statusCode == 200) {
+            
+            $lat = $data->resourceSets[0]->resources[0]->geocodePoints[0]->coordinates[0];
+            $lng = $data->resourceSets[0]->resources[0]->geocodePoints[0]->coordinates[1];
+            
+        } else {
+            
+            $error->code = $data->statusCode;
+            $error->description = $data->statusDescription;
+            
+        }
+        
+        
+        return array($lat, $lng, $error);
     }
 }
